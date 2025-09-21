@@ -414,6 +414,36 @@
             processFiles(files);
         }
         
+        // 解析EXIF日期
+        function parseEXIFDate(dateString) {
+            if (!dateString || typeof dateString !== 'string') {
+                return null;
+            }
+            
+            try {
+                // EXIF日期格式通常是 "YYYY:MM:DD HH:mm:ss"
+                // 需要将冒号替换为连字符，使其符合ISO格式
+                const isoString = dateString.replace(/:/g, '-', 2).replace('-', ':', 1);
+                const date = new Date(isoString);
+                
+                // 验证日期是否有效
+                if (isNaN(date.getTime())) {
+                    return null;
+                }
+                
+                // 检查日期是否在合理范围内（1990年到2030年）
+                const year = date.getFullYear();
+                if (year < 1990 || year > 2030) {
+                    return null;
+                }
+                
+                return date;
+            } catch (error) {
+                console.warn('EXIF日期解析失败:', dateString, error);
+                return null;
+            }
+        }
+        
         // 处理上传的文件
         function processFiles(files) {
             if (files.length === 0) return;
@@ -431,12 +461,40 @@
                     // 获取EXIF数据（拍摄时间）
                     EXIF.getData(file, function() {
                         const exifData = EXIF.getAllTags(this);
-                        const dateTime = exifData.DateTime || exifData.DateTimeOriginal || new Date().getTime();
+                        let dateTime = null;
+                        
+                        // 尝试多种EXIF日期字段
+                        const dateFields = [
+                            exifData.DateTime,
+                            exifData.DateTimeOriginal,
+                            exifData.DateTimeDigitized,
+                            exifData.CreateDate,
+                            exifData.ModifyDate
+                        ];
+                        
+                        // 查找第一个有效的日期
+                        for (let field of dateFields) {
+                            if (field && field !== '') {
+                                dateTime = field;
+                                break;
+                            }
+                        }
+                        
+                        // 解析日期
+                        let imageDate;
+                        if (dateTime) {
+                            // EXIF日期格式通常是 "YYYY:MM:DD HH:mm:ss"
+                            const parsedDate = parseEXIFDate(dateTime);
+                            imageDate = parsedDate || new Date(file.lastModified);
+                        } else {
+                            // 如果没有EXIF日期，使用文件修改时间
+                            imageDate = new Date(file.lastModified);
+                        }
                         
                         uploadedImages.push({
                             data: e.target.result,
                             name: file.name,
-                            date: new Date(dateTime)
+                            date: imageDate
                         });
                         
                         // 更新预览
@@ -473,7 +531,15 @@
                 
                 const info = document.createElement('div');
                 info.className = 'image-info';
-                info.textContent = `${index + 1}. ${image.date.toLocaleString()}`;
+                
+                // 安全地显示日期
+                let dateString;
+                if (image.date && !isNaN(image.date.getTime())) {
+                    dateString = image.date.toLocaleString('zh-CN');
+                } else {
+                    dateString = '日期未知';
+                }
+                info.textContent = `${index + 1}. ${dateString}`;
                 
                 const dragHandle = document.createElement('div');
                 dragHandle.className = 'drag-handle';
@@ -590,6 +656,27 @@
                 statusText.textContent = "HTML生成失败，请重试";
                 progressBar.style.width = '0%';
             }
+        }
+        
+        // 获取日期范围
+        function getDateRange() {
+            if (uploadedImages.length === 0) {
+                return '未知';
+            }
+            
+            const validDates = uploadedImages
+                .map(img => img.date)
+                .filter(date => date && !isNaN(date.getTime()));
+            
+            if (validDates.length === 0) {
+                return '日期未知';
+            }
+            
+            const sortedDates = validDates.sort((a, b) => a - b);
+            const startDate = sortedDates[0].toLocaleDateString('zh-CN');
+            const endDate = sortedDates[sortedDates.length - 1].toLocaleDateString('zh-CN');
+            
+            return startDate === endDate ? startDate : `${startDate} - ${endDate}`;
         }
         
         // 生成HTML内容
@@ -782,7 +869,7 @@
                 <strong>生成时间:</strong> ${currentDate}
             </div>
             <div class="info-item">
-                <strong>拍摄时间范围:</strong> ${uploadedImages.length > 0 ? uploadedImages[0].date.toLocaleDateString('zh-CN') + ' - ' + uploadedImages[uploadedImages.length - 1].date.toLocaleDateString('zh-CN') : '未知'}
+                <strong>拍摄时间范围:</strong> ${getDateRange()}
             </div>
         </div>
     </div>
