@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PPT照片整理工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            position: relative;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+        }
+        
+        .subtitle {
+            color: #7f8c8d;
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+        }
+        
+        .upload-area {
+            border: 3px dashed #3498db;
+            border-radius: 10px;
+            padding: 40px 20px;
+            text-align: center;
+            margin-bottom: 30px;
+            transition: all 0.3s;
+            background: #f8fafc;
+        }
+        
+        .upload-area:hover, .upload-area.dragover {
+            background: #e1f0fa;
+            border-color: #2980b9;
+        }
+        
+        .upload-icon {
+            font-size: 60px;
+            color: #3498db;
+            margin-bottom: 15px;
+        }
+        
+        .upload-text {
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+        }
+        
+        .meeting-title-area {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .title-label {
+            display: block;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .title-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+        
+        .title-input:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+        
+        .btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: inline-block;
+            box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+        
+        .btn:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 7px 14px rgba(50, 50, 93, 0.1), 0 3px 6px rgba(0, 0, 0, 0.08);
+        }
+        
+        .btn:active {
+            transform: translateY(1px);
+        }
+        
+        .btn-generate {
+            background: #2ecc71;
+        }
+        
+        .btn-generate:hover {
+            background: #27ae60;
+        }
+        
+        .btn-download {
+            background: #9b59b6;
+        }
+        
+        .btn-download:hover {
+            background: #8e44ad;
+        }
+        
+        .btn-reset {
+            background: #e74c3c;
+        }
+        
+        .btn-reset:hover {
+            background: #c0392b;
+        }
+        
+        
+        .preview-area {
+            margin-bottom: 30px;
+        }
+        
+        .preview-title {
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+            color: #2c3e50;
+        }
+        
+        .image-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .image-item {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s;
+            cursor: move;
+            user-select: none;
+        }
+        
+        .image-item:hover {
+            transform: scale(1.05);
+        }
+        
+        .image-item.dragging {
+            opacity: 0.5;
+            transform: rotate(5deg);
+        }
+        
+        .image-item.drag-over {
+            border: 2px solid #3498db;
+            transform: scale(1.1);
+        }
+        
+        .image-item img {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            display: block;
+        }
+        
+        .image-info {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px;
+            font-size: 0.8rem;
+            text-align: center;
+        }
+        
+        .drag-handle {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            border-radius: 3px;
+            padding: 2px 5px;
+            font-size: 0.7rem;
+            cursor: move;
+        }
+        
+        .delete-btn {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            background: rgba(231, 76, 60, 0.8);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+        
+        .delete-btn:hover {
+            background: rgba(231, 76, 60, 1);
+            transform: scale(1.1);
+        }
+        
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .status-bar {
+            background: #f1f1f1;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 20px;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+        
+        .progress-bar {
+            height: 10px;
+            background: #ecf0f1;
+            border-radius: 5px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        
+        .progress {
+            height: 100%;
+            background: #3498db;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+            
+            .btn {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>PPT照片整理工具</h1>
+            <p class="subtitle">上传您拍摄的PPT照片，按时间顺序整理并生成HTML报告</p>
+        </header>
+        
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📷</div>
+            <p class="upload-text">拖放您拍摄的PPT照片到这里，或者</p>
+            <label for="fileInput" class="btn">选择文件</label>
+            <input type="file" id="fileInput" multiple accept="image/*" style="display: none;">
+        </div>
+        
+        <div class="meeting-title-area">
+            <label for="meetingTitle" class="title-label">会议标题：</label>
+            <input type="text" id="meetingTitle" placeholder="请输入会议标题（可选）" class="title-input">
+        </div>
+        
+        <div class="preview-area">
+            <h2 class="preview-title">已上传照片 (<span id="imageCount">0</span>)</h2>
+            <div class="image-list" id="imageList">
+                <!-- 图片预览将在这里显示 -->
+            </div>
+            
+            <div class="action-buttons">
+                <button class="btn btn-generate" id="generateBtn" disabled>生成HTML报告</button>
+                <button class="btn btn-download" id="downloadBtn" disabled>下载HTML</button>
+                <button class="btn btn-reset" id="resetBtn">重置</button>
+            </div>
+            
+            <div class="status-bar">
+                <div id="statusText">准备就绪</div>
+                <div class="progress-bar">
+                    <div class="progress" id="progressBar"></div>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>© 2023 PPT照片整理工具 | 使用说明：上传照片后，系统将自动按拍摄时间排序并生成HTML报告</p>
+        </footer>
+    </div>
+
+    <script>
+        // 全局变量
+        let uploadedImages = [];
+        let generatedHTML = null;
+        let draggedElement = null;
+        let draggedIndex = null;
+        
+        // DOM元素
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const meetingTitle = document.getElementById('meetingTitle');
+        const imageList = document.getElementById('imageList');
+        const imageCount = document.getElementById('imageCount');
+        const generateBtn = document.getElementById('generateBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const statusText = document.getElementById('statusText');
+        const progressBar = document.getElementById('progressBar');
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', init);
+        
+        function init() {
+            // 事件监听器
+            uploadArea.addEventListener('dragover', handleDragOver);
+            uploadArea.addEventListener('dragleave', handleDragLeave);
+            uploadArea.addEventListener('drop', handleDrop);
+            fileInput.addEventListener('change', handleFileSelect);
+            generateBtn.addEventListener('click', generateHTML);
+            downloadBtn.addEventListener('click', downloadHTML);
+            resetBtn.addEventListener('click', resetAll);
+            
+            // 禁用按钮
+            updateButtons();
+        }
+        
+        // 拖放功能
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadArea.classList.add('dragover');
+        }
+        
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadArea.classList.remove('dragover');
+        }
+        
+        function handleDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadArea.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            processFiles(files);
+        }
+        
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            processFiles(files);
+        }
+        
+        // 处理上传的文件
+        function processFiles(files) {
+            if (files.length === 0) return;
+            
+            statusText.textContent = "处理照片中...";
+            
+            let processed = 0;
+            Array.from(files).forEach(file => {
+                if (!file.type.match('image.*')) {
+                    return;
+                }
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    // 获取EXIF数据（拍摄时间）
+                    EXIF.getData(file, function() {
+                        const exifData = EXIF.getAllTags(this);
+                        const dateTime = exifData.DateTime || exifData.DateTimeOriginal || new Date().getTime();
+                        
+                        uploadedImages.push({
+                            data: e.target.result,
+                            name: file.name,
+                            date: new Date(dateTime)
+                        });
+                        
+                        // 更新预览
+                        updatePreview();
+                        processed++;
+                        
+                        if (processed === files.length) {
+                            statusText.textContent = `已成功上传 ${files.length} 张照片`;
+                            progressBar.style.width = '100%';
+                            
+                            // 自动排序
+                            sortImagesByTime();
+                        }
+                    });
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        // 更新预览
+        function updatePreview() {
+            imageList.innerHTML = '';
+            imageCount.textContent = uploadedImages.length;
+            
+            uploadedImages.forEach((image, index) => {
+                const div = document.createElement('div');
+                div.className = 'image-item';
+                div.draggable = true;
+                div.dataset.index = index;
+                
+                const img = document.createElement('img');
+                img.src = image.data;
+                img.alt = image.name;
+                
+                const info = document.createElement('div');
+                info.className = 'image-info';
+                info.textContent = `${index + 1}. ${image.date.toLocaleString()}`;
+                
+                const dragHandle = document.createElement('div');
+                dragHandle.className = 'drag-handle';
+                dragHandle.textContent = '⋮⋮';
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.textContent = '×';
+                deleteBtn.title = '删除此图片';
+                
+                div.appendChild(img);
+                div.appendChild(info);
+                div.appendChild(dragHandle);
+                div.appendChild(deleteBtn);
+                imageList.appendChild(div);
+                
+                // 添加拖拽事件监听器
+                addDragListeners(div, index);
+                
+                // 添加删除事件监听器
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteImage(index);
+                });
+            });
+            
+            updateButtons();
+        }
+        
+        // 按时间排序
+        function sortImagesByTime() {
+            uploadedImages.sort((a, b) => a.date - b.date);
+            updatePreview();
+            statusText.textContent = "已按拍摄时间排序，您可以拖拽调整顺序";
+        }
+        
+        // 删除图片
+        function deleteImage(index) {
+            if (confirm(`确定要删除第 ${index + 1} 张图片吗？`)) {
+                uploadedImages.splice(index, 1);
+                updatePreview();
+                statusText.textContent = `已删除图片，剩余 ${uploadedImages.length} 张`;
+                
+                // 如果删除了所有图片，重置生成的HTML
+                if (uploadedImages.length === 0) {
+                    generatedHTML = null;
+                    updateButtons();
+                }
+            }
+        }
+        
+        // 添加拖拽事件监听器
+        function addDragListeners(element, index) {
+            element.addEventListener('dragstart', (e) => {
+                draggedElement = element;
+                draggedIndex = index;
+                element.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/html', element.outerHTML);
+            });
+            
+            element.addEventListener('dragend', (e) => {
+                element.classList.remove('dragging');
+                document.querySelectorAll('.image-item').forEach(item => {
+                    item.classList.remove('drag-over');
+                });
+                draggedElement = null;
+                draggedIndex = null;
+            });
+            
+            element.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                element.classList.add('drag-over');
+            });
+            
+            element.addEventListener('dragleave', (e) => {
+                element.classList.remove('drag-over');
+            });
+            
+            element.addEventListener('drop', (e) => {
+                e.preventDefault();
+                element.classList.remove('drag-over');
+                
+                if (draggedIndex !== null && draggedIndex !== index) {
+                    // 交换数组中的元素
+                    const draggedImage = uploadedImages[draggedIndex];
+                    uploadedImages.splice(draggedIndex, 1);
+                    uploadedImages.splice(index, 0, draggedImage);
+                    
+                    // 重新渲染预览
+                    updatePreview();
+                    statusText.textContent = "图片顺序已调整";
+                }
+            });
+        }
+        
+        // 生成HTML报告
+        function generateHTML() {
+            statusText.textContent = "正在生成HTML报告...";
+            progressBar.style.width = '0%';
+            
+            try {
+                // 生成HTML内容
+                const htmlContent = generateHTMLContent();
+                generatedHTML = htmlContent;
+                
+                statusText.textContent = "HTML报告生成完成！";
+                progressBar.style.width = '100%';
+                downloadBtn.disabled = false;
+                
+            } catch (error) {
+                console.error('HTML生成错误:', error);
+                statusText.textContent = "HTML生成失败，请重试";
+                progressBar.style.width = '0%';
+            }
+        }
+        
+        // 生成HTML内容
+        function generateHTMLContent() {
+            const currentDate = new Date().toLocaleDateString('zh-CN');
+            const totalImages = uploadedImages.length;
+            const meetingTitleText = meetingTitle.value.trim() || 'PPT演示文稿';
+            
+            let imagesHTML = '';
+            uploadedImages.forEach((image, index) => {
+                imagesHTML += `
+                    <div class="image-page">
+                        <div class="image-header">
+                            <h2>第 ${index + 1} 页</h2>
+                        </div>
+                        <div class="image-container">
+                            <img src="${image.data}" alt="PPT图片 ${index + 1}" />
+                        </div>
+                    </div>
+                `;
+            });
+            
+            return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${meetingTitleText} - ${currentDate}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        .summary {
+            background: white;
+            margin: 20px;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .summary h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+        
+        .summary-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .info-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .info-item strong {
+            color: #667eea;
+        }
+        
+        .image-page {
+            background: white;
+            margin: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            page-break-after: always;
+        }
+        
+        .image-header {
+            background: #667eea;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .image-header h2 {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+        
+        .image-info {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin: 5px 0;
+        }
+        
+        .image-container {
+            padding: 20px;
+            text-align: center;
+            background: #f8f9fa;
+        }
+        
+        .image-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .footer {
+            background: #333;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            margin-top: 40px;
+        }
+        
+        @media print {
+            body {
+                background: white;
+            }
+            
+            .header {
+                background: #667eea !important;
+                -webkit-print-color-adjust: exact;
+                color-adjust: exact;
+            }
+            
+            .image-page {
+                box-shadow: none;
+                border: 1px solid #ddd;
+            }
+            
+            .image-header {
+                background: #667eea !important;
+                -webkit-print-color-adjust: exact;
+                color-adjust: exact;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .summary-info {
+                grid-template-columns: 1fr;
+            }
+            
+            .image-page {
+                margin: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>${meetingTitleText}</h1>
+        <p>会议记录 - ${currentDate}</p>
+    </div>
+    
+    <div class="summary">
+        <h2>📊 报告摘要</h2>
+        <div class="summary-info">
+            <div class="info-item">
+                <strong>总页数:</strong> ${totalImages} 页
+            </div>
+            <div class="info-item">
+                <strong>生成时间:</strong> ${currentDate}
+            </div>
+            <div class="info-item">
+                <strong>拍摄时间范围:</strong> ${uploadedImages.length > 0 ? uploadedImages[0].date.toLocaleDateString('zh-CN') + ' - ' + uploadedImages[uploadedImages.length - 1].date.toLocaleDateString('zh-CN') : '未知'}
+            </div>
+        </div>
+    </div>
+    
+    ${imagesHTML}
+    
+    <div class="footer">
+        <p>© 2023 PPT照片整理工具 | 此报告由PPT照片整理工具自动生成</p>
+    </div>
+</body>
+</html>`;
+        }
+        
+        // 下载HTML
+        function downloadHTML() {
+            if (generatedHTML) {
+                const meetingTitleText = meetingTitle.value.trim() || 'PPT演示文稿';
+                const currentDate = new Date().toISOString().slice(0, 10);
+                const blob = new Blob([generatedHTML], { type: 'text/html;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${meetingTitleText}_${currentDate}.html`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                statusText.textContent = "HTML文件下载已开始";
+            }
+        }
+        
+        
+        // 重置所有
+        function resetAll() {
+            uploadedImages = [];
+            generatedHTML = null;
+            imageList.innerHTML = '';
+            imageCount.textContent = '0';
+            progressBar.style.width = '0%';
+            statusText.textContent = "已重置，可以重新上传照片";
+            updateButtons();
+        }
+        
+        // 更新按钮状态
+        function updateButtons() {
+            generateBtn.disabled = uploadedImages.length === 0;
+            downloadBtn.disabled = generatedHTML === null;
+        }
+    </script>
+</body>
+</html>
