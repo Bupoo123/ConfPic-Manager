@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PPT照片整理工具</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -143,6 +144,14 @@
         
         .btn-download:hover {
             background: #8e44ad;
+        }
+        
+        .btn-email {
+            background: #f39c12;
+        }
+        
+        .btn-email:hover {
+            background: #e67e22;
         }
         
         .btn-reset {
@@ -335,6 +344,7 @@
             <div class="action-buttons">
                 <button class="btn btn-generate" id="generateBtn" disabled>生成HTML报告</button>
                 <button class="btn btn-download" id="downloadBtn" disabled>下载HTML</button>
+                <button class="btn btn-email" id="emailBtn" disabled>发送到邮箱</button>
                 <button class="btn btn-reset" id="resetBtn">重置</button>
             </div>
             
@@ -366,14 +376,30 @@
         const imageCount = document.getElementById('imageCount');
         const generateBtn = document.getElementById('generateBtn');
         const downloadBtn = document.getElementById('downloadBtn');
+        const emailBtn = document.getElementById('emailBtn');
         const resetBtn = document.getElementById('resetBtn');
         const statusText = document.getElementById('statusText');
         const progressBar = document.getElementById('progressBar');
+        
+        // EmailJS配置 - 需要替换为您的实际配置
+        const EMAILJS_CONFIG = {
+            serviceId: 'YOUR_SERVICE_ID',  // 需要在EmailJS网站获取
+            templateId: 'YOUR_TEMPLATE_ID', // 需要在EmailJS网站创建模板
+            publicKey: 'YOUR_PUBLIC_KEY'    // 需要在EmailJS网站获取
+        };
+        
+        // 目标邮箱
+        const TARGET_EMAIL = 'bupoo.7c04633@m.yinxiang.com';
         
         // 初始化
         document.addEventListener('DOMContentLoaded', init);
         
         function init() {
+            // 初始化EmailJS
+            if (typeof emailjs !== 'undefined') {
+                emailjs.init(EMAILJS_CONFIG.publicKey);
+            }
+            
             // 事件监听器
             uploadArea.addEventListener('dragover', handleDragOver);
             uploadArea.addEventListener('dragleave', handleDragLeave);
@@ -381,6 +407,7 @@
             fileInput.addEventListener('change', handleFileSelect);
             generateBtn.addEventListener('click', generateHTML);
             downloadBtn.addEventListener('click', downloadHTML);
+            emailBtn.addEventListener('click', sendEmail);
             resetBtn.addEventListener('click', resetAll);
             
             // 禁用按钮
@@ -494,7 +521,8 @@
                         uploadedImages.push({
                             data: e.target.result,
                             name: file.name,
-                            date: imageDate
+                            date: imageDate,
+                            size: file.size // 保存文件大小，用于邮件发送
                         });
                         
                         // 更新预览
@@ -917,6 +945,168 @@
         function updateButtons() {
             generateBtn.disabled = uploadedImages.length === 0;
             downloadBtn.disabled = generatedHTML === null;
+            emailBtn.disabled = generatedHTML === null;
+        }
+        
+        // HTML转Markdown（完整版）
+        function htmlToMarkdown(html) {
+            if (!html) return '';
+            
+            let markdown = '';
+            const meetingTitleText = meetingTitle.value.trim() || 'PPT演示文稿';
+            const currentDate = new Date().toLocaleDateString('zh-CN');
+            const totalImages = uploadedImages.length;
+            
+            // 添加标题和摘要信息
+            markdown += `# ${meetingTitleText}\n\n`;
+            markdown += `> **会议记录报告**\n\n`;
+            markdown += `**生成时间**: ${currentDate}\n\n`;
+            markdown += `**总页数**: ${totalImages} 页\n\n`;
+            markdown += `**拍摄时间范围**: ${getDateRange()}\n\n`;
+            markdown += '---\n\n';
+            
+            // 处理每张图片
+            uploadedImages.forEach((image, index) => {
+                markdown += `## 📄 第 ${index + 1} 页\n\n`;
+                
+                // 获取日期信息
+                let dateString = '日期未知';
+                if (image.date && !isNaN(image.date.getTime())) {
+                    dateString = image.date.toLocaleString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                }
+                
+                markdown += `- **拍摄时间**: ${dateString}\n`;
+                markdown += `- **图片名称**: ${image.name}\n`;
+                
+                // 如果有文件大小信息
+                if (image.size) {
+                    const sizeMB = (image.size / 1024 / 1024).toFixed(2);
+                    markdown += `- **文件大小**: ${sizeMB} MB\n`;
+                }
+                
+                markdown += `\n*注：图片内容已包含在HTML版本中，请查看附件或HTML格式邮件*\n\n`;
+                markdown += '---\n\n';
+            });
+            
+            // 添加页脚信息
+            markdown += `\n---\n\n`;
+            markdown += `*此报告由PPT照片整理工具自动生成*\n`;
+            markdown += `*生成时间: ${new Date().toLocaleString('zh-CN')}*\n`;
+            
+            return markdown;
+        }
+        
+        // 发送邮件
+        async function sendEmail() {
+            if (!generatedHTML) {
+                statusText.textContent = "请先生成HTML报告";
+                alert('请先点击"生成HTML报告"按钮生成报告内容');
+                return;
+            }
+            
+            // 检查EmailJS是否加载
+            if (typeof emailjs === 'undefined') {
+                statusText.textContent = "EmailJS未加载";
+                alert('EmailJS库加载失败，请检查网络连接');
+                return;
+            }
+            
+            // 检查EmailJS配置
+            if (EMAILJS_CONFIG.serviceId === 'YOUR_SERVICE_ID' || 
+                EMAILJS_CONFIG.templateId === 'YOUR_TEMPLATE_ID' ||
+                EMAILJS_CONFIG.publicKey === 'YOUR_PUBLIC_KEY') {
+                statusText.textContent = "请先配置EmailJS参数";
+                const configMsg = `请先在代码中配置EmailJS参数：
+
+1. 访问 https://www.emailjs.com/ 注册账号
+2. 创建邮件服务和模板
+3. 在代码中替换以下配置：
+   - serviceId: ${EMAILJS_CONFIG.serviceId}
+   - templateId: ${EMAILJS_CONFIG.templateId}
+   - publicKey: ${EMAILJS_CONFIG.publicKey}
+
+详细配置说明请查看：EMAILJS配置说明.md`;
+                alert(configMsg);
+                return;
+            }
+            
+            // 禁用按钮，防止重复发送
+            emailBtn.disabled = true;
+            statusText.textContent = "正在准备邮件内容...";
+            progressBar.style.width = '10%';
+            
+            try {
+                // 转换为Markdown格式
+                const markdownContent = htmlToMarkdown(generatedHTML);
+                const meetingTitleText = meetingTitle.value.trim() || 'PPT演示文稿';
+                const currentDate = new Date().toLocaleDateString('zh-CN');
+                
+                statusText.textContent = "正在发送邮件...";
+                progressBar.style.width = '50%';
+                
+                // 准备邮件参数
+                const templateParams = {
+                    to_email: TARGET_EMAIL,
+                    subject: `${meetingTitleText} - ${currentDate}`,
+                    message: markdownContent,
+                    html_content: generatedHTML.substring(0, 50000), // 限制HTML长度，避免邮件过大
+                    total_images: uploadedImages.length.toString(),
+                    report_title: meetingTitleText,
+                    report_date: currentDate
+                };
+                
+                // 发送邮件
+                const response = await emailjs.send(
+                    EMAILJS_CONFIG.serviceId,
+                    EMAILJS_CONFIG.templateId,
+                    templateParams
+                );
+                
+                console.log('邮件发送成功:', response);
+                statusText.textContent = `✅ 邮件已成功发送到 ${TARGET_EMAIL}`;
+                progressBar.style.width = '100%';
+                
+                // 3秒后恢复按钮
+                setTimeout(() => {
+                    emailBtn.disabled = false;
+                }, 3000);
+                
+            } catch (error) {
+                console.error('邮件发送错误:', error);
+                let errorMsg = '邮件发送失败';
+                
+                if (error.text) {
+                    errorMsg += `: ${error.text}`;
+                } else if (error.message) {
+                    errorMsg += `: ${error.message}`;
+                }
+                
+                statusText.textContent = errorMsg;
+                progressBar.style.width = '0%';
+                
+                // 显示详细错误信息
+                const fullErrorMsg = `邮件发送失败！
+
+可能的原因：
+1. EmailJS配置不正确（serviceId, templateId, publicKey）
+2. 邮件模板中的变量名称不匹配
+3. 网络连接问题
+4. EmailJS服务限制（免费版每月200封）
+
+错误详情：${error.text || error.message || '未知错误'}
+
+请检查配置后重试。`;
+                alert(fullErrorMsg);
+                
+                // 恢复按钮
+                emailBtn.disabled = false;
+            }
         }
     </script>
 </body>
